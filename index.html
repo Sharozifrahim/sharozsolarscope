@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04060c">
+<title>Sharoz Solar Scope — live orrery with hand control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png"  href="/favicon.ico">
+
+<style>
+:root{
+  --void:#04060c;
+  --ink:#eaeef7;
+  --dim:#9aa6bd;
+  --panel:rgba(11,15,27,.74);
+  --line:rgba(165,190,235,.17);
+  --sun:#ffb347;
+  --cyan:#7ad7ff;
+  --radius:18px;
+  --head:'Bricolage Grotesque','Figtree',system-ui,sans-serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--void);color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;outline:none}
+#scene.hover{cursor:pointer}
+#scene.drag{cursor:grabbing}
+
+.glass{background:var(--panel);backdrop-filter:blur(18px) saturate(1.35);-webkit-backdrop-filter:blur(18px) saturate(1.35);border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+
+/* ---------- loader ---------- */
+#loader{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 40%,#0d1424 0%,#04060c 70%);transition:opacity .9s ease,visibility .9s}
+#loader.done{opacity:0;visibility:hidden}
+.load-box{width:min(360px,80vw);text-align:center}
+.load-sun{width:74px;height:74px;margin:0 auto 26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff4c2,#ffb347 45%,#e2561a 100%);box-shadow:0 0 60px 14px rgba(255,150,40,.45);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.07);box-shadow:0 0 80px 22px rgba(255,150,40,.55)}}
+.load-box h2{font:700 1.5rem/1.1 var(--head);margin-bottom:8px}
+.load-box p{color:var(--dim);font-size:.9rem;min-height:1.3em}
+.load-bar{height:3px;background:rgba(255,255,255,.1);border-radius:3px;margin-top:20px;overflow:hidden}
+.load-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--sun),var(--cyan));transition:width .25s}
+
+/* ---------- top bar ---------- */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 14px) 14px 0;pointer-events:none}
+.topbar>*{pointer-events:auto}
+.brand{padding:4px 2px}
+.brand h1{font:700 1.2rem/1 var(--head);letter-spacing:-.01em}
+.brand p{color:var(--dim);font-size:.8rem;margin-top:5px}
+.tools{display:flex;gap:4px;padding:5px;border-radius:15px}
+.tool{display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;border:0;background:transparent;color:var(--dim);font-size:.84rem;font-weight:500;transition:background .2s,color .2s}
+.tool svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tool:hover{background:rgba(255,255,255,.07);color:var(--ink)}
+.tool[aria-pressed="true"]{color:var(--ink);background:rgba(122,215,255,.13)}
+.tool.hand[aria-pressed="true"]{background:rgba(255,179,71,.2);color:#ffd9a3}
+
+/* ---------- body navigation ---------- */
+.nav{position:fixed;left:14px;top:50%;transform:translateY(-50%);z-index:15;display:flex;flex-direction:column;gap:1px;padding:6px;border-radius:16px;max-height:78vh;overflow:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{display:flex;align-items:center;gap:11px;padding:7px 14px 7px 10px;border:0;border-radius:10px;background:none;color:var(--dim);font-size:.87rem;font-weight:500;text-align:left;white-space:nowrap;transition:background .2s,color .2s}
+.nav button i{width:11px;height:11px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c);flex:none}
+.nav button:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+.nav button.on{color:var(--ink);background:rgba(255,255,255,.11)}
+
+/* ---------- labels ---------- */
+#labels{position:fixed;inset:0;z-index:10;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;pointer-events:auto;border:0;background:rgba(6,9,18,.55);color:#dfe6f5;font-size:.76rem;font-weight:500;padding:3px 9px 4px;border-radius:20px;white-space:nowrap;will-change:transform;transition:opacity .25s,background .2s,color .2s;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.lbl:hover,.lbl.hot{background:rgba(255,255,255,.92);color:#0a0f1c}
+.lbl.hidden{opacity:0;pointer-events:none}
+body.nolabels .lbl:not(.hot){opacity:0;pointer-events:none}
+
+/* ---------- info panel ---------- */
+.panel{position:fixed;top:78px;right:14px;bottom:14px;width:min(410px,calc(100vw - 28px));z-index:30;border-radius:22px;overflow-y:auto;overscroll-behavior:contain;padding:0 0 22px;transform:translateX(calc(100% + 30px));transition:transform .5s cubic-bezier(.2,.85,.25,1);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+body.panel-open .panel{transform:none}
+.p-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:12px 12px 10px 20px;background:linear-gradient(var(--panel) 72%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.p-head .grow{flex:1}
+.icon-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);display:grid;place-items:center;color:var(--dim);transition:background .2s,color .2s}
+.icon-btn:hover{background:rgba(255,255,255,.12);color:var(--ink)}
+.icon-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.p-body{padding:0 22px}
+.p-title{display:flex;align-items:center;gap:12px;margin-top:2px}
+.p-dot{width:16px;height:16px;border-radius:50%;background:var(--c);box-shadow:0 0 16px var(--c);flex:none}
+.p-title h2{font:700 2.1rem/1 var(--head);letter-spacing:-.02em}
+.p-kind{color:var(--dim);font-size:.9rem;margin:8px 0 14px}
+.p-desc{font-size:.95rem;line-height:1.6;color:#d3dbec;max-width:62ch}
+.live{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 6px}
+.live div{padding:10px 11px;border-radius:12px;background:rgba(122,215,255,.07);border:1px solid rgba(122,215,255,.16)}
+.live b{display:block;font:600 1rem/1.15 var(--head);font-variant-numeric:tabular-nums;color:#dff4ff}
+.live span{display:block;font-size:.72rem;color:var(--dim);margin-top:4px}
+.p-h{font:600 1rem/1 var(--head);margin:24px 0 12px;color:#fff}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.stats div{background:rgba(9,12,22,.85);padding:11px 13px}
+.stats dt{font-size:.74rem;color:var(--dim);margin-bottom:3px}
+.stats dd{font-size:.9rem;font-weight:500;line-height:1.3}
+.bar{display:flex;height:11px;border-radius:8px;overflow:hidden;gap:2px}
+.bar i{display:block;background:var(--c);min-width:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:11px;font-size:.82rem;color:#c9d2e6}
+.legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:7px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chips span{padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.07);font-size:.83rem}
+.facts{list-style:none;display:grid;gap:10px}
+.facts li{position:relative;padding-left:18px;font-size:.9rem;line-height:1.55;color:#cfd8ec}
+.facts li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:50%;background:var(--c)}
+
+/* ---------- time bar ---------- */
+.timebar{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transform:translateX(-50%);z-index:18;display:flex;align-items:center;gap:14px;padding:8px 16px 8px 8px;border-radius:18px;transition:left .5s cubic-bezier(.2,.85,.25,1)}
+.timebar .icon-btn{width:38px;height:38px;border-radius:12px}
+.tb-speed{display:flex;flex-direction:column;gap:5px;min-width:150px}
+.tb-speed label{font-size:.74rem;color:var(--dim);display:flex;justify-content:space-between;gap:10px}
+.tb-speed label b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.18);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--sun);border:0;box-shadow:0 0 12px rgba(255,179,71,.7);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--sun);border:0;cursor:pointer}
+.tb-date{font:600 .95rem/1 var(--head);font-variant-numeric:tabular-nums;min-width:112px;text-align:right}
+.tb-date small{display:block;font:400 .72rem var(--body);color:var(--dim);margin-top:5px}
+.txt-btn{padding:7px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:.8rem;color:var(--dim)}
+.txt-btn:hover{color:var(--ink);background:rgba(255,255,255,.1)}
+
+/* ---------- hand HUD ---------- */
+.hud{position:fixed;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:19;width:236px;border-radius:18px;padding:8px;display:none}
+body.hand-on .hud{display:block}
+.cam-wrap{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:4/3;background:#000}
+.cam-wrap video,.cam-wrap canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cam-wrap video{opacity:.75}
+.gest{display:flex;align-items:center;gap:8px;padding:9px 4px 3px;font-size:.86rem;font-weight:500}
+.gest .em{font-size:1.15rem;width:24px;text-align:center}
+.gest small{display:block;color:var(--dim);font-weight:400;font-size:.74rem}
+.guide{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;font-size:.78rem;color:#c3cde2;display:grid;gap:5px}
+.guide div{display:flex;gap:9px;line-height:1.35}
+.guide em{font-style:normal;width:22px;text-align:center;flex:none}
+.guide-toggle{width:100%;margin-top:6px;background:none;border:0;color:var(--dim);font-size:.76rem;padding:4px}
+.hud.min .guide{display:none}
+
+/* ---------- hand cursor ---------- */
+.cursor{position:fixed;left:0;top:0;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;border:2px solid var(--cyan);pointer-events:none;z-index:60;opacity:0;transition:opacity .2s,width .15s,height .15s,margin .15s,background .2s,border-color .2s;box-shadow:0 0 18px rgba(122,215,255,.45)}
+.cursor.on{opacity:1}
+.cursor::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff}
+.cursor.pinch{width:32px;height:32px;margin:-16px 0 0 -16px;background:rgba(122,215,255,.32);border-color:#fff}
+.cursor.palm{border-style:dashed;border-color:#b6f0c8;box-shadow:0 0 18px rgba(150,240,180,.4)}
+.cursor.fist{border-color:var(--sun);box-shadow:0 0 18px rgba(255,179,71,.5)}
+.cursor.two{width:16px;height:16px;margin:-8px 0 0 -8px;background:#fff}
+.cursor .prog{position:absolute;inset:-7px;border-radius:50%;background:conic-gradient(var(--sun) calc(var(--p,0)*1turn),transparent 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px))}
+.cursor .tag{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;padding:3px 10px;border-radius:9px;background:rgba(0,0,0,.66);font-size:.8rem;white-space:nowrap;opacity:0;transition:opacity .15s}
+.cursor .tag.on{opacity:1}
+
+/* ---------- toast ---------- */
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translate(-50%,16px);z-index:80;max-width:min(520px,88vw);padding:11px 18px;border-radius:14px;font-size:.88rem;line-height:1.4;text-align:center;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- responsive ---------- */
+@media(min-width:821px){
+  body.panel-open .timebar{left:calc((100% - 424px)/2)}
+}
+@media(max-width:1100px){
+  .tool span{display:none}
+  .tool{padding:9px}
+}
+@media(max-width:820px){
+  .brand p{display:none}
+  .nav{left:8px;right:8px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 82px);transform:none;flex-direction:row;max-height:none;overflow-x:auto;border-radius:14px;padding:4px}
+  .nav button{padding:8px 12px 8px 9px}
+  .timebar{left:8px;right:8px;transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);justify-content:space-between;gap:10px;padding:7px 12px 7px 7px}
+  .tb-speed{flex:1;min-width:0}
+  .tb-date{min-width:0}
+  .tb-date small,.timebar .txt-btn{display:none}
+  .panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:57vh;border-radius:22px;transform:translateY(calc(100% + 30px))}
+  body.panel-open .timebar,body.panel-open .nav{opacity:0;pointer-events:none}
+  .hud{left:8px;top:calc(env(safe-area-inset-top,0px) + 62px);bottom:auto;width:150px;padding:6px}
+  .hud .guide,.hud .guide-toggle{display:none}
+  .p-title h2{font-size:1.8rem}
+  .toast{bottom:calc(env(safe-area-inset-bottom,0px) + 140px)}
+}
+@media(max-width:820px) and (max-height:520px){
+  .panel{height:72vh}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms!important;animation-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="load-box">
+    <div class="load-sun"></div>
+    
+    <h2>Sharoz Solar Scope</h2>
+    <p id="loadText">Preparing the sky…</p>
+    <div class="load-bar"><i id="loadBar"></i></div>
+  </div>
+</div>
+
+<canvas id="scene" tabindex="0" aria-label="3D solar system. Drag to rotate, scroll to zoom, click a planet for details."></canvas>
+<div id="labels"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <h1 style="display: flex; align-items: center; gap: 12px;">
+    <img 
+        src="./favicon.png" 
+        style="height: 50px; width: 50px; object-fit: contain;" 
+        alt="Sharoz Solar Scope Logo"
+    >
+    <span>Sharoz Solar Scope</span>
+</h1>
+    <p>Live positions from today's date</p>
+  </div>
+  <div class="tools glass" role="toolbar" aria-label="View options">
+    <button class="tool" id="btnHome" title="Reset view (Esc)" aria-label="Reset view">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span>Reset</span>
+    </button>
+    <button class="tool" id="btnLabels" aria-pressed="true" title="Names (L)">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13"/></svg><span>Names</span>
+    </button>
+    <button class="tool" id="btnOrbits" aria-pressed="true" title="Orbits (O)">
+      <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="5"/><circle cx="12" cy="12" r="1.6"/></svg><span>Orbits</span>
+    </button>
+    <button class="tool" id="btnBelt" aria-pressed="true" title="Asteroid belt (B)">
+      <svg viewBox="0 0 24 24"><circle cx="6" cy="8" r="1.4"/><circle cx="13" cy="5" r="1"/><circle cx="18" cy="11" r="1.6"/><circle cx="9" cy="16" r="1.2"/><circle cx="16" cy="18" r="1"/></svg><span>Asteroids</span>
+    </button>
+    <button class="tool hand" id="btnHand" aria-pressed="false" title="Hand control (H)">
+      <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 013 0V11M11 10V4a1.5 1.5 0 013 0v6M14 10V5.5a1.5 1.5 0 013 0V13M17 9.5a1.5 1.5 0 013 0V15a7 7 0 01-7 7h-1a7 7 0 01-5.6-2.8L4 15.5a1.6 1.6 0 012.4-2L8 15"/></svg><span>Hand control</span>
+    </button>
+    <button class="tool" id="btnFull" title="Fullscreen" aria-label="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Fullscreen</span>
+    </button>
+  </div>
+</header>
+
+<nav class="nav glass" id="nav" aria-label="Jump to a planet"></nav>
+
+<aside class="panel glass" id="panel" aria-live="polite" aria-label="Planet details">
+  <div class="p-head">
+    <span class="grow"></span>
+    <button class="icon-btn" id="pPrev" aria-label="Previous body"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button class="icon-btn" id="pNext" aria-label="Next body"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <button class="icon-btn" id="pClose" aria-label="Close details"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="p-body" id="pBody"></div>
+</aside>
+
+<div class="timebar glass" id="timebar">
+  <button class="icon-btn" id="btnPlay" aria-label="Pause simulation" title="Pause / play (Space)">
+    <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14M16 5v14"/></svg>
+  </button>
+  <div class="tb-speed">
+    <label for="speed">Time speed <b id="speedTxt"></b></label>
+    <input type="range" id="speed" min="1" max="100" value="51" aria-label="Simulation speed">
+  </div>
+  <div class="tb-date"><span id="dateTxt"></span><small id="dateSub">simulated date</small></div>
+  <button class="txt-btn" id="btnNow">Today</button>
+</div>
+
+<aside class="hud glass" id="hud" aria-label="Hand tracking">
+  <div class="cam-wrap"><video id="cam" playsinline muted></video><canvas id="ov"></canvas></div>
+  <div class="gest"><span class="em" id="gEm">🖐️</span><div><span id="gTxt">Starting…</span><small id="gSub"></small></div></div>
+  <div class="guide">
+    <div><em>☝️</em><span>Point to move the cursor. Hold over a planet to select it.</span></div>
+    <div><em>🤏</em><span>Pinch a planet and hold: it spins as you move. Pinch empty space to orbit the view.</span></div>
+    <div><em>✋</em><span>Open palm, then move it toward the camera to zoom in and away to zoom out.</span></div>
+    <div><em>🙌</em><span>Pinch with both hands and spread or close them to zoom.</span></div>
+    <div><em>✊</em><span>Hold a fist to stop and return to the full system.</span></div>
+  </div>
+  <button class="guide-toggle" id="guideToggle">Hide guide</button>
+</aside>
+
+<div class="cursor" id="cursor"><div class="prog" id="curProg"></div><div class="tag" id="curTag"></div></div>
+<div class="toast glass" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   SOLAR SYSTEM — three.js orrery with real orbital elements,
+   procedural planet textures and MediaPipe hand control.
+   ===================================================================== */
+
+const TAU = Math.PI * 2;
+const rad = d => d * Math.PI / 180;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const $ = s => document.querySelector(s);
+const V3 = THREE.Vector3;
+
+/* ---------------------------------------------------------------------
+   1. DATA  (scene units are compressed; orbital elements are real)
+   --------------------------------------------------------------------- */
+const DATA = [
+{ id:'sun', name:'Sun', kind:'Star, G-type main sequence', color:'#ffb43c', r:16, fd:4.2, rotH:609,
+  desc:'The Sun holds 99.86% of all the mass in the Solar System. Deep in its core, hydrogen fuses into helium, and the energy that results takes about 100,000 years to reach the surface before crossing space as sunlight.',
+  stats:[['Diameter','1,392,700 km (109 × Earth)'],['Mass','1.989 × 10³⁰ kg'],['Surface gravity','274 m/s² (28 g)'],['Rotation','25 days at equator'],['Surface temperature','5,500 °C'],['Core temperature','15 million °C'],['Age','4.6 billion years'],['Light to Earth','8 min 20 s']],
+  compTitle:'What it is made of', comp:[['Hydrogen',73,'#ffcf6b'],['Helium',25,'#ff8f3a'],['Heavier elements',2,'#c94a2b']],
+  moons:[], facts:['Every second it converts roughly 600 million tonnes of hydrogen into helium.','About 1.3 million Earths could fit inside it.','Its magnetic field flips about every 11 years, driving the solar cycle.'] },
+
+{ id:'mercury', name:'Mercury', kind:'Terrestrial planet, 1st from the Sun', color:'#b5aca0', r:1.3, fd:5.5, rotH:1407.6, tilt:0.03,
+  orb:{a:34,aAU:0.387,e:0.2056,inc:7.0,L0:252.25,varpi:77.46,P:87.97},
+  desc:'The smallest planet and the closest to the Sun. With almost no atmosphere to hold heat, its surface swings from scorching days to freezing nights, and its face is packed with craters much like our Moon.',
+  stats:[['Diameter','4,879 km'],['Mass','3.30 × 10²³ kg (0.055 Earth)'],['Surface gravity','3.7 m/s²'],['Day length','176 Earth days (sunrise to sunrise)'],['Year length','88 Earth days'],['Distance from Sun','57.9 million km (0.39 AU)'],['Temperature','−180 to 430 °C'],['Axial tilt','0.03°'],['Orbital speed','47.4 km/s (average)'],['Escape velocity','4.25 km/s'],['Moons','None']],
+  compTitle:'Interior (by mass)', comp:[['Iron-nickel core',70,'#9a8f86'],['Silicate mantle and crust',30,'#d7c9b5']],
+  moons:[], facts:['It is not the hottest planet: Venus is, thanks to its thick atmosphere.','Its iron core takes up roughly 85% of the planet’s radius.','One Mercury year is shorter than one Mercury day.'] },
+
+{ id:'venus', name:'Venus', kind:'Terrestrial planet, 2nd from the Sun', color:'#e8c887', r:2.4, fd:5, rotH:5832.5, tilt:177.4, atmo:['#ffd9a0',.7],
+  orb:{a:48,aAU:0.723,e:0.0068,inc:3.39,L0:181.98,varpi:131.53,P:224.7},
+  desc:'Earth’s size-twin is a furnace wrapped in clouds of sulfuric acid. A runaway greenhouse effect keeps the surface hotter than lead melts, and the planet spins backwards so slowly that its day outlasts its year.',
+  stats:[['Diameter','12,104 km'],['Mass','4.87 × 10²⁴ kg (0.815 Earth)'],['Surface gravity','8.87 m/s²'],['Day length','117 Earth days (rotation: 243, retrograde)'],['Year length','224.7 Earth days'],['Distance from Sun','108.2 million km (0.72 AU)'],['Temperature','465 °C everywhere'],['Axial tilt','177.4° (spins backwards)'],['Orbital speed','35.0 km/s (average)'],['Escape velocity','10.36 km/s'],['Moons','None']],
+  compTitle:'Atmosphere', comp:[['Carbon dioxide',96.5,'#e9b25e'],['Nitrogen',3.5,'#8fa6c9']],
+  moons:[], facts:['The Sun rises in the west and sets in the east.','Surface pressure is about 92 times that of Earth, like being 900 m under the sea.','It is the brightest planet in our night sky.'] },
+
+{ id:'earth', name:'Earth', kind:'Terrestrial planet, 3rd from the Sun', color:'#4c9be8', r:2.5, fd:5.2, rotH:23.934, tilt:23.44, atmo:['#5aa9ff',1.0],
+  orb:{a:64,aAU:1.0,e:0.0167,inc:0.0,L0:100.46,varpi:102.94,P:365.25},
+  desc:'Our home, and the only place we know that harbours life. Liquid water covers most of its surface, a protective magnetic field deflects the solar wind, and a nitrogen-oxygen atmosphere keeps temperatures mild.',
+  stats:[['Diameter','12,742 km'],['Mass','5.97 × 10²⁴ kg'],['Surface gravity','9.81 m/s²'],['Day length','24 hours (rotation: 23 h 56 m)'],['Year length','365.25 days'],['Distance from Sun','149.6 million km (1 AU)'],['Temperature','−89 to 57 °C (avg 15 °C)'],['Axial tilt','23.44°'],['Orbital speed','29.8 km/s (average)'],['Escape velocity','11.19 km/s'],['Moons','1 (the Moon)']],
+  compTitle:'Atmosphere', comp:[['Nitrogen',78,'#7fa3d9'],['Oxygen',21,'#8fe0c0'],['Argon and others',1,'#e8d8a0']],
+  moons:['Moon'], facts:['About 71% of the surface is covered by ocean.','The Moon slows Earth’s rotation, lengthening the day by about 2 milliseconds per century.','It is the densest planet in the Solar System.'] },
+
+{ id:'mars', name:'Mars', kind:'Terrestrial planet, 4th from the Sun', color:'#d1663a', r:1.8, fd:5.2, rotH:24.62, tilt:25.19, atmo:['#e8a98a',.35],
+  orb:{a:82,aAU:1.524,e:0.0934,inc:1.85,L0:355.45,varpi:336.04,P:686.98},
+  desc:'A cold desert world with the tallest volcano and the deepest canyon known in the Solar System. Ancient riverbeds and lake deposits show that liquid water once flowed here, which is why rovers keep searching for signs of past life.',
+  stats:[['Diameter','6,779 km'],['Mass','6.42 × 10²³ kg (0.107 Earth)'],['Surface gravity','3.71 m/s²'],['Day length','24 h 37 min'],['Year length','687 Earth days'],['Distance from Sun','227.9 million km (1.52 AU)'],['Temperature','−140 to 20 °C (avg −63 °C)'],['Axial tilt','25.19°'],['Orbital speed','24.1 km/s (average)'],['Escape velocity','5.03 km/s'],['Moons','2 (Phobos, Deimos)']],
+  compTitle:'Atmosphere', comp:[['Carbon dioxide',95,'#d98a63'],['Nitrogen',2.7,'#8fa6c9'],['Argon',1.6,'#c9b4e0'],['Other',0.7,'#e8d8a0']],
+  moons:['Phobos','Deimos'], facts:['Olympus Mons is about 22 km high, nearly three times the height of Everest.','Valles Marineris stretches roughly 4,000 km, as far as across the United States.','Its rusty colour comes from iron oxide in the dust.'] },
+
+{ id:'jupiter', name:'Jupiter', kind:'Gas giant, 5th from the Sun', color:'#d9a878', r:7.5, fd:5.4, rotH:9.925, tilt:3.13,
+  orb:{a:128,aAU:5.203,e:0.0489,inc:1.3,L0:34.4,varpi:14.75,P:4332.6},
+  desc:'The king of planets holds more than twice the mass of all the others combined. Its banded clouds are stretched by a 10-hour day, and the Great Red Spot is a storm larger than Earth that has raged for centuries.',
+  stats:[['Diameter','139,820 km (11 × Earth)'],['Mass','1.90 × 10²⁷ kg (318 Earths)'],['Surface gravity','24.8 m/s² (at cloud tops)'],['Day length','9 h 56 min'],['Year length','11.86 Earth years'],['Distance from Sun','778.5 million km (5.2 AU)'],['Temperature','−110 °C at cloud tops'],['Axial tilt','3.13°'],['Orbital speed','13.1 km/s (average)'],['Escape velocity','59.5 km/s'],['Moons','95+ known']],
+  compTitle:'Atmosphere', comp:[['Hydrogen',90,'#e6c9a0'],['Helium',10,'#f6ecd8']],
+  moons:['Io','Europa','Ganymede','Callisto'], facts:['Galileo discovered its four largest moons in 1610.','Ganymede is bigger than Mercury, the largest moon in the Solar System.','Its faint ring system was found by Voyager 1 in 1979.'] },
+
+{ id:'saturn', name:'Saturn', kind:'Gas giant, 6th from the Sun', color:'#e6cf9c', r:6.5, fd:7.2, rotH:10.66, tilt:26.73,
+  orb:{a:170,aAU:9.537,e:0.0565,inc:2.49,L0:49.94,varpi:92.43,P:10759},
+  desc:'Famous for its spectacular rings, made of billions of chunks of ice and rock from dust-size to house-size. It is the least dense planet: if you could find an ocean big enough, Saturn would float.',
+  stats:[['Diameter','116,460 km (9.4 × Earth)'],['Mass','5.68 × 10²⁶ kg (95 Earths)'],['Surface gravity','10.4 m/s² (at cloud tops)'],['Day length','10 h 33 min'],['Year length','29.46 Earth years'],['Distance from Sun','1.43 billion km (9.5 AU)'],['Temperature','−140 °C at cloud tops'],['Axial tilt','26.73°'],['Orbital speed','9.7 km/s (average)'],['Escape velocity','35.5 km/s'],['Moons','270+ known']],
+  compTitle:'Atmosphere', comp:[['Hydrogen',96.3,'#ead8a8'],['Helium',3.2,'#fff2cf'],['Other',0.5,'#c7a86a']],
+  moons:['Titan','Rhea','Enceladus','Mimas'], facts:['The rings span about 280,000 km but are typically only tens of metres thick.','Titan has a thick atmosphere and lakes of liquid methane.','Its north pole has a hexagon-shaped jet stream.'] },
+
+{ id:'uranus', name:'Uranus', kind:'Ice giant, 7th from the Sun', color:'#9be0e6', r:4, fd:5.2, rotH:17.24, tilt:97.77, atmo:['#9be9f2',.6],
+  orb:{a:210,aAU:19.19,e:0.0457,inc:0.77,L0:313.23,varpi:170.96,P:30687},
+  desc:'A pale cyan ice giant that rolls around the Sun on its side, likely knocked over by an ancient collision. Methane in its atmosphere absorbs red light, giving it that calm blue-green colour.',
+  stats:[['Diameter','50,724 km (4 × Earth)'],['Mass','8.68 × 10²⁵ kg (14.5 Earths)'],['Surface gravity','8.69 m/s²'],['Day length','17 h 14 min (retrograde)'],['Year length','84 Earth years'],['Distance from Sun','2.87 billion km (19.2 AU)'],['Temperature','−195 °C (min −224 °C)'],['Axial tilt','97.77°'],['Orbital speed','6.8 km/s (average)'],['Escape velocity','21.3 km/s'],['Moons','28+ known']],
+  compTitle:'Atmosphere', comp:[['Hydrogen',82.5,'#bfeff4'],['Helium',15.2,'#f4fbff'],['Methane',2.3,'#6fc7d4']],
+  moons:['Titania','Oberon','Miranda'], facts:['Each pole gets about 42 years of continuous sunlight, then 42 years of darkness.','William Herschel discovered it in 1781, the first planet found with a telescope.','It has the coldest planetary atmosphere ever measured.'] },
+
+{ id:'neptune', name:'Neptune', kind:'Ice giant, 8th from the Sun', color:'#4a6fe0', r:3.9, fd:5.2, rotH:16.11, tilt:28.32, atmo:['#4b73ff',.8],
+  orb:{a:245,aAU:30.07,e:0.0113,inc:1.77,L0:304.88,varpi:44.97,P:60190},
+  desc:'The most distant planet, dark, cold and whipped by supersonic winds. It was found in 1846 by calculation before anyone saw it, because its gravity tugged on the orbit of Uranus.',
+  stats:[['Diameter','49,244 km (3.9 × Earth)'],['Mass','1.02 × 10²⁶ kg (17 Earths)'],['Surface gravity','11.15 m/s²'],['Day length','16 h 6 min'],['Year length','164.8 Earth years'],['Distance from Sun','4.50 billion km (30 AU)'],['Temperature','−200 °C'],['Axial tilt','28.32°'],['Orbital speed','5.4 km/s (average)'],['Escape velocity','23.5 km/s'],['Moons','16 known']],
+  compTitle:'Atmosphere', comp:[['Hydrogen',80,'#7f9dff'],['Helium',19,'#dbe6ff'],['Methane',1.5,'#3b57c9']],
+  moons:['Triton','Nereid'], facts:['Winds reach over 2,000 km/h, the fastest in the Solar System.','It completed its first full orbit since discovery in 2011.','Triton orbits backwards and is slowly spiralling inward.'] },
+
+{ id:'pluto', name:'Pluto', kind:'Dwarf planet, Kuiper belt', color:'#c9a889', r:0.9, fd:6, rotH:153.3, tilt:122.5,
+  orb:{a:275,aAU:39.48,e:0.2488,inc:17.16,L0:238.93,varpi:224.07,P:90560},
+  desc:'A small, icy world at the edge of the Solar System. New Horizons flew past in 2015 and revealed mountains of water ice, plains of frozen nitrogen and a huge heart-shaped glacier.',
+  stats:[['Diameter','2,377 km'],['Mass','1.30 × 10²² kg (0.002 Earth)'],['Surface gravity','0.62 m/s²'],['Day length','6.4 Earth days (retrograde)'],['Year length','248 Earth years'],['Distance from Sun','5.9 billion km (39.5 AU)'],['Temperature','−230 °C'],['Axial tilt','122.5°'],['Orbital speed','4.7 km/s (average)'],['Escape velocity','1.21 km/s'],['Moons','5 (Charon, Styx, Nix, Kerberos, Hydra)']],
+  compTitle:'Atmosphere (very thin)', comp:[['Nitrogen',99,'#e6d4c0'],['Methane and CO',1,'#a9784f']],
+  moons:['Charon','Styx','Nix','Kerberos','Hydra'], facts:['It was reclassified as a dwarf planet in 2006.','For 20 years of its 248-year orbit it is closer to the Sun than Neptune.','Pluto and Charon are tidally locked and always show each other the same face.'] }
+];
+
+/* Moons that are simulated in the scene (a = orbit radius in scene units, P = period in days) */
+const MOONS = {
+  earth:  [{n:'Moon',     a:5.6,  r:.68, P:27.32, c:[168,166,162], tex:'moon'}],
+  jupiter:[{n:'Io',       a:11.5, r:.75, P:1.77,  c:[228,196,84]},
+           {n:'Europa',   a:14.5, r:.66, P:3.55,  c:[220,208,186]},
+           {n:'Ganymede', a:18.5, r:1.05,P:7.15,  c:[142,126,110]},
+           {n:'Callisto', a:23.5, r:.95, P:16.69, c:[88,80,72]}],
+  saturn: [{n:'Titan',    a:25,   r:1.0, P:15.95, c:[208,152,72]}],
+  neptune:[{n:'Triton',   a:8.5,  r:.7,  P:5.88,  c:[196,180,180], retro:true}],
+  pluto:  [{n:'Charon',   a:2.8,  r:.45, P:6.39,  c:[142,132,126]}]
+};
+
+/* ---------------------------------------------------------------------
+   2. PROCEDURAL TEXTURES  (3D value noise sampled on the sphere,
+      so there are no seams and no pole pinching)
+   --------------------------------------------------------------------- */
+function hash3(x, y, z){
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1274126177);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967295;
+}
+function vnoise(x, y, z){
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  let xf = x - xi, yf = y - yi, zf = z - zi;
+  xf = xf * xf * (3 - 2 * xf); yf = yf * yf * (3 - 2 * yf); zf = zf * zf * (3 - 2 * zf);
+  const a = hash3(xi,yi,zi), b = hash3(xi+1,yi,zi), c = hash3(xi,yi+1,zi), d = hash3(xi+1,yi+1,zi);
+  const e = hash3(xi,yi,zi+1), f = hash3(xi+1,yi,zi+1), g = hash3(xi,yi+1,zi+1), h = hash3(xi+1,yi+1,zi+1);
+  const x1 = a + (b - a) * xf, x2 = c + (d - c) * xf, x3 = e + (f - e) * xf, x4 = g + (h - g) * xf;
+  const y1 = x1 + (x2 - x1) * yf, y2 = x3 + (x4 - x3) * yf;
+  return y1 + (y2 - y1) * zf;
+}
+function fbm(x, y, z, oct){
+  let amp = 1, f = 1, s = 0, n = 0;
+  for (let i = 0; i < oct; i++){ s += amp * vnoise(x*f, y*f, z*f); n += amp; amp *= .5; f *= 2.03; }
+  return s / n;
+}
+function ramp(stops, t, o){
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  for (let i = 1; i < stops.length; i++){
+    if (t <= stops[i][0]){
+      const p0 = stops[i-1][0], p1 = stops[i][0], c0 = stops[i-1][1], c1 = stops[i][1];
+      const k = (t - p0) / ((p1 - p0) || 1);
+      o[0] = c0[0] + (c1[0]-c0[0])*k; o[1] = c0[1] + (c1[1]-c0[1])*k; o[2] = c0[2] + (c1[2]-c0[2])*k;
+      return;
+    }
+  }
+  const c = stops[stops.length-1][1]; o[0] = c[0]; o[1] = c[1]; o[2] = c[2];
+}
+const mix3 = (a, b, k, o) => { o[0] = a[0]+(b[0]-a[0])*k; o[1] = a[1]+(b[1]-a[1])*k; o[2] = a[2]+(b[2]-a[2])*k; };
+const wrapU = d => d > .5 ? d - 1 : d < -.5 ? d + 1 : d;
+
+function paint(w, h, fn){
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(w, h), px = img.data, o = [0,0,0,255];
+  for (let j = 0; j < h; j++){
+    const v = (j + .5) / h, lat = (.5 - v) * Math.PI, cl = Math.cos(lat), y = Math.sin(lat);
+    for (let i = 0; i < w; i++){
+      const u = (i + .5) / w, lon = u * TAU, x = cl * Math.cos(lon), z = cl * Math.sin(lon);
+      o[3] = 255; fn(x, y, z, lat, u, o);
+      const k = (j * w + i) * 4;
+      px[k] = o[0]; px[k+1] = o[1]; px[k+2] = o[2]; px[k+3] = o[3];
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+
+const PAL = {
+  sun:[[0,[190,45,0]],[.4,[255,110,10]],[.7,[255,185,55]],[1,[255,246,205]]],
+  merc:[[0,[52,49,46]],[.5,[128,122,114]],[1,[208,200,188]]],
+  venus:[[0,[168,120,58]],[.5,[226,188,112]],[1,[250,232,178]]],
+  mars:[[0,[84,36,22]],[.45,[168,80,44]],[1,[222,150,98]]],
+  jup:[[0,[118,76,50]],[.35,[190,140,98]],[.65,[232,206,168]],[1,[248,238,214]]],
+  sat:[[0,[172,140,92]],[.5,[216,192,142]],[1,[244,230,192]]],
+  ura:[[0,[128,196,206]],[.5,[156,220,228]],[1,[190,238,242]]],
+  nep:[[0,[24,46,140]],[.5,[46,84,205]],[1,[110,150,240]]],
+  pluto:[[0,[96,62,44]],[.5,[170,138,108]],[1,[226,208,186]]],
+  moon:[[0,[62,62,66]],[.5,[140,138,136]],[1,[200,198,194]]]
+};
+
+const R = {
+  sun(x,y,z,lat,u,o){
+    const n = fbm(x*2.6,y*2.6,z*2.6,5), g = fbm(x*15+7,y*15,z*15,3);
+    ramp(PAL.sun, n*1.3 + (g-.5)*.7 - .12, o);
+  },
+  mercury(x,y,z,lat,u,o){
+    const n = fbm(x*3,y*3,z*3,6), c = fbm(x*9+4,y*9,z*9,4);
+    ramp(PAL.merc, n*.6 + c*.5 - .1, o);
+    if (c < .37){ o[0]*=.72; o[1]*=.72; o[2]*=.72; }
+  },
+  venus(x,y,z,lat,u,o){
+    const w = fbm(x*1.6,y*1.6,z*1.6,3);
+    const t = fbm(x*2.2+w*2.4, y*5+w*1.2, z*2.2+w*2.4, 5);
+    ramp(PAL.venus, (t-.25)*1.7, o);
+  },
+  earth(x,y,z,lat,u,o){
+    const h = fbm(x*1.6+3,y*1.6+1,z*1.6+8,6), al = Math.abs(y), sea = .535;
+    const ice = al + (fbm(x*6,y*6,z*6,3)-.5)*.28;
+    if (ice > .9){ o[0]=238; o[1]=244; o[2]=250; return; }
+    if (h < sea){
+      const d = clamp((sea-h)/.17,0,1);
+      mix3([38,124,186],[7,30,92],Math.pow(d,.7),o);
+      return;
+    }
+    const e = clamp((h-sea)/.2,0,1), m = fbm(x*3+20,y*3,z*3,4);
+    const desert = clamp((.47-m)*6,0,1) * (al < .68 ? 1 : 0), tund = clamp((al-.6)*5,0,1);
+    mix3([52,106,46],[190,164,100],desert,o);
+    mix3([o[0],o[1],o[2]],[120,128,112],tund*.7,o);
+    mix3([o[0],o[1],o[2]],[124,112,98],clamp((e-.5)*3,0,1),o);
+    if (e > .8) mix3([o[0],o[1],o[2]],[240,240,244],clamp((e-.8)*5,0,1),o);
+    if (e < .05) mix3([o[0],o[1],o[2]],[204,190,140],.5,o);
+  },
+  clouds(x,y,z,lat,u,o){
+    const c = fbm(x*2.4+50,y*3.6,z*2.4,6);
+    const a = clamp((c-.5)*3.4,0,1);
+    o[0]=o[1]=o[2]=255; o[3]=a*225;
+  },
+  mars(x,y,z,lat,u,o){
+    const n = fbm(x*3,y*3,z*3,6), d = fbm(x*8+2,y*8,z*8,4);
+    ramp(PAL.mars, n*1.1 + (d-.5)*.35 - .05, o);
+    if (n < .44){ o[0]*=.66; o[1]*=.66; o[2]*=.68; }
+    const ice = Math.abs(y) + (d-.5)*.15;
+    if (ice > .93) mix3([o[0],o[1],o[2]],[245,245,250],clamp((ice-.93)*20,0,1),o);
+  },
+  jupiter(x,y,z,lat,u,o){
+    const t = fbm(x*3,y*9,z*3,4);
+    const b = Math.sin((y + (t-.5)*.22) * Math.PI * 9) * .5 + .5;
+    ramp(PAL.jup, b*.85 + (t-.5)*.5 + .05, o);
+    const dl = wrapU(u-.3) * TAU * Math.cos(lat), dp = lat + .38;
+    const e = (dl/.34)*(dl/.34) + (dp/.17)*(dp/.17);
+    if (e < 1.35){
+      const k = clamp(1.35 - e, 0, 1) * 1.6;
+      mix3([o[0],o[1],o[2]], e < .55 ? [178,66,40] : [214,150,110], clamp(k,0,1), o);
+    }
+  },
+  saturn(x,y,z,lat,u,o){
+    const t = fbm(x*2,y*7,z*2,4);
+    const b = Math.sin((y + (t-.5)*.15) * Math.PI * 13) * .5 + .5;
+    ramp(PAL.sat, .25 + b*.35 + (t-.5)*.6, o);
+  },
+  uranus(x,y,z,lat,u,o){
+    const t = fbm(x*1.5,y*6,z*1.5,3);
+    ramp(PAL.ura, .35 + (t-.5)*.9 + Math.sin(y*11)*.06, o);
+  },
+  neptune(x,y,z,lat,u,o){
+    const t = fbm(x*2,y*7,z*2,5);
+    ramp(PAL.nep, .38 + (t-.5)*1.1 + Math.sin(y*10+t*3)*.09, o);
+    const dl = wrapU(u-.62)*TAU*Math.cos(lat), dp = lat + .4;
+    const e = (dl/.25)*(dl/.25) + (dp/.11)*(dp/.11);
+    if (e < 1) mix3([o[0],o[1],o[2]],[12,22,80],(1-e)*.85,o);
+    const w = fbm(x*4+9,y*14,z*4,4);
+    if (w > .62) mix3([o[0],o[1],o[2]],[220,235,255],clamp((w-.62)*5,0,.7),o);
+  },
+  pluto(x,y,z,lat,u,o){
+    const n = fbm(x*3,y*3,z*3,6), c = fbm(x*8+3,y*8,z*8,3);
+    ramp(PAL.pluto, n*.9 + (c-.5)*.4, o);
+    if (lat < .08 && lat > -.5 && n < .5) mix3([o[0],o[1],o[2]],[84,48,34],.7,o);
+    const dl = wrapU(u-.42)*TAU*Math.cos(lat), dp = lat - .22;
+    const e = (dl/.55)*(dl/.55) + (dp/.4)*(dp/.4);
+    if (e < 1) mix3([o[0],o[1],o[2]],[238,224,206],clamp((1-e)*1.8,0,.9),o);
+  },
+  moon(x,y,z,lat,u,o){
+    const n = fbm(x*3,y*3,z*3,6), m = fbm(x*1.4+11,y*1.4,z*1.4,4), c = fbm(x*12,y*12,z*12,3);
+    ramp(PAL.moon, n*.7 + c*.4 - .05, o);
+    if (m > .54){ const k = clamp((m-.54)*7,0,.55); o[0]*=1-k; o[1]*=1-k; o[2]*=1-k*.9; }
+  }
+};
+function rocky(base){
+  return (x,y,z,lat,u,o) => {
+    const n = fbm(x*4,y*4,z*4,5), c = fbm(x*12+3,y*12,z*12,3);
+    const t = .55 + (n-.5)*1.1 + (c-.5)*.5;
+    o[0] = clamp(base[0]*t,0,255); o[1] = clamp(base[1]*t,0,255); o[2] = clamp(base[2]*t,0,255);
+  };
+}
+function ringTexture(kind){
+  const w = 1024, cv = document.createElement('canvas'); cv.width = w; cv.height = 2;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(w, 2);
+  for (let i = 0; i < w; i++){
+    const t = i / w, n = vnoise(t*140,3,7), n2 = vnoise(t*30,9,1);
+    let a = 0, c0 = [150,130,104], c1 = [238,222,192];
+    if (kind === 'saturn'){
+      if (t < .03) a = 0;
+      else if (t < .17) a = .16 + .1*n2;                       // C ring
+      else if (t < .52) a = .78 + .2*n;                         // B ring
+      else if (t < .58) a = .05;                                // Cassini division
+      else if (t < .94) a = (.5 + .3*n2) * (t > .86 && t < .875 ? .25 : 1);  // A ring + Encke gap
+      else if (t < .97) a = .12;
+      a *= .78 + .22*n;
+    } else {
+      const bands = [.08,.18,.3,.42,.56,.7,.9];
+      for (const b of bands) if (Math.abs(t-b) < .012) a = .5;
+      c0 = c1 = [150,160,168];
+    }
+    const k = clamp(.25 + n2*.9,0,1), o = i*4;
+    img.data[o] = c0[0] + (c1[0]-c0[0])*k; img.data[o+1] = c0[1] + (c1[1]-c0[1])*k; img.data[o+2] = c0[2] + (c1[2]-c0[2])*k; img.data[o+3] = clamp(a,0,1)*255;
+    img.data[(w+i)*4] = img.data[o]; img.data[(w+i)*4+1] = img.data[o+1]; img.data[(w+i)*4+2] = img.data[o+2]; img.data[(w+i)*4+3] = img.data[o+3];
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv;
+}
+function glowTexture(stops){
+  const s = 256, cv = document.createElement('canvas'); cv.width = cv.height = s;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  stops.forEach(([p,c]) => gr.addColorStop(p,c));
+  g.fillStyle = gr; g.fillRect(0,0,s,s);
+  return cv;
+}
+
+/* ---------------------------------------------------------------------
+   3. RENDERER / SCENE
+   --------------------------------------------------------------------- */
+const canvas = $('#scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.setClearColor(0x02030a, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, .1, 7000);
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+scene.add(new THREE.AmbientLight(0x26344d, .55));
+const sunLight = new THREE.PointLight(0xfff1dc, 2.1, 0, 0);
+scene.add(sunLight);
+
+function tex(canvasEl, srgb = true){
+  const t = new THREE.CanvasTexture(canvasEl);
+  if (srgb) t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = Math.min(8, maxAniso);
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+function atmosphere(r, color, k){
+  return new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), new THREE.ShaderMaterial({
+    uniforms:{c:{value:new THREE.Color(color)}, k:{value:k}},
+    vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.0);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+    fragmentShader:'uniform vec3 c;uniform float k;varying vec3 vN;varying vec3 vV;void main(){float d=-dot(vN,vV);float i=pow(clamp(d*2.6,0.0,1.0),2.2)*k;gl_FragColor=vec4(c,i);}',
+    side:THREE.BackSide, blending:THREE.AdditiveBlending, transparent:true, depthWrite:false
+  }));
+}
+
+/* Starfield (follows the camera so it always feels infinitely far) */
+const stars = (() => {
+  const n = 7000, pos = new Float32Array(n*3), col = new Float32Array(n*3), c = new THREE.Color();
+  for (let i = 0; i < n; i++){
+    const u = Math.random()*2-1, t = Math.random()*TAU, s = Math.sqrt(1-u*u), r = 4200 + Math.random()*400;
+    pos[i*3] = r*s*Math.cos(t); pos[i*3+1] = r*u; pos[i*3+2] = r*s*Math.sin(t);
+    const k = Math.random();
+    c.setHSL(k < .15 ? .58 : k < .3 ? .08 : .1, k < .3 ? .55 : .1, .68 + Math.random()*.3);
+    col.set([c.r*(.5+Math.random()*.5), c.g*(.5+Math.random()*.5), c.b*(.5+Math.random()*.5)], i*3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const dot = new THREE.CanvasTexture(glowTexture([[0,'rgba(255,255,255,1)'],[.35,'rgba(255,255,255,.7)'],[1,'rgba(255,255,255,0)']]));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({size:2.6, map:dot, vertexColors:true, sizeAttenuation:false, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
+  p.frustumCulled = false; scene.add(p); return p;
+})();
+
+/* ---------------------------------------------------------------------
+   4. ORBITAL MECHANICS  (Kepler equation solved every frame)
+   --------------------------------------------------------------------- */
+const AXIS_X = new V3(1,0,0), AXIS_Y = new V3(0,1,0);
+function orbitPoint(orb, E, out){
+  const xo = orb.a * (Math.cos(E) - orb.e);
+  const yo = orb.a * Math.sqrt(1 - orb.e*orb.e) * Math.sin(E);
+  return out.set(xo, 0, -yo).applyAxisAngle(AXIS_Y, rad(orb.varpi)).applyAxisAngle(AXIS_X, rad(orb.inc));
+}
+function keplerPos(orb, days, out){
+  let M = rad(orb.L0 - orb.varpi) + TAU * days / orb.P;
+  M = M % TAU;
+  let E = M;
+  for (let i = 0; i < 7; i++) E = M + orb.e * Math.sin(E);
+  orbitPoint(orb, E, out);
+  return 1 - orb.e * Math.cos(E);       // r / a
+}
+
+/* ---------------------------------------------------------------------
+   5. BUILD THE WORLD
+   --------------------------------------------------------------------- */
+const bodies = [], byId = {}, hitMeshes = [];
+const orbitLines = new THREE.Group(); scene.add(orbitLines);
+let belt = null, sunGlow = null;
+const TEXSPEC = {
+  sun:{w:512,h:256,fn:R.sun}, mercury:{w:512,h:256,fn:R.mercury}, venus:{w:512,h:256,fn:R.venus},
+  earth:{w:1024,h:512,fn:R.earth}, mars:{w:512,h:256,fn:R.mars}, jupiter:{w:1024,h:512,fn:R.jupiter},
+  saturn:{w:512,h:256,fn:R.saturn}, uranus:{w:512,h:256,fn:R.uranus}, neptune:{w:512,h:256,fn:R.neptune},
+  pluto:{w:512,h:256,fn:R.pluto}
+};
+const T = {};
+
+function setLoad(p, txt){ $('#loadBar').style.width = (p*100).toFixed(0) + '%'; if (txt) $('#loadText').textContent = txt; }
+const tick = () => new Promise(r => setTimeout(r, 8));
+
+async function generateTextures(){
+  const ids = Object.keys(TEXSPEC);
+  const moonList = Object.values(MOONS).flat();
+  const total = ids.length + moonList.length + 3; let done = 0;
+  for (const id of ids){
+    const s = TEXSPEC[id];
+    setLoad(done/total, 'Shaping ' + id.charAt(0).toUpperCase() + id.slice(1) + '…');
+    await tick();
+    T[id] = tex(paint(s.w, s.h, s.fn));
+    done++;
+  }
+  setLoad(done/total, 'Whipping up clouds…'); await tick();
+  T.clouds = tex(paint(1024,512,R.clouds)); done++;
+  T.ringSaturn = tex(ringTexture('saturn')); T.ringUranus = tex(ringTexture('uranus')); done += 2;
+  for (const m of moonList){
+    setLoad(done/total, 'Adding ' + m.n + '…'); await tick();
+    m.texture = tex(paint(256,128, m.tex === 'moon' ? R.moon : rocky(m.c)));
+    done++;
+  }
+  setLoad(1, 'Lighting the Sun…');
+}
+
+function buildBody(d){
+  const b = { d, id:d.id, r:d.r, pivot:new THREE.Object3D(), tilt:new THREE.Group(), moons:[], rf:1,
+              uy:0, ux:0, vy:0, vx:0, held:false, rotH:d.rotH };
+  b.pivot.name = d.name;
+  scene.add(b.pivot);
+  b.tilt.rotation.z = rad(d.tilt || 0);
+  b.pivot.add(b.tilt);
+
+  const seg = d.id === 'sun' ? 64 : 64;
+  const geo = new THREE.SphereGeometry(d.r, seg, 48);
+  let mat;
+  if (d.id === 'sun') mat = new THREE.MeshBasicMaterial({map:T.sun});
+  else {
+    const rockyPlanet = ['mercury','mars','pluto'].includes(d.id);
+    mat = new THREE.MeshStandardMaterial({map:T[d.id], roughness: rockyPlanet ? .96 : d.id === 'earth' ? .62 : .82, metalness:0});
+    if (rockyPlanet){ mat.bumpMap = T[d.id]; mat.bumpScale = 1.6; }
+  }
+  b.mesh = new THREE.Mesh(geo, mat);
+  b.tilt.add(b.mesh);
+
+  if (d.id === 'earth'){
+    b.clouds = new THREE.Mesh(new THREE.SphereGeometry(d.r*1.013, 64, 48),
+      new THREE.MeshStandardMaterial({map:T.clouds, transparent:true, depthWrite:false, roughness:1}));
+    b.tilt.add(b.clouds);
+  }
+  if (d.atmo) b.tilt.add(atmosphere(d.r*1.16, d.atmo[0], d.atmo[1]));
+
+  if (d.id === 'saturn' || d.id === 'uranus'){
+    const inner = d.r * (d.id === 'saturn' ? 1.24 : 1.55), outer = d.r * (d.id === 'saturn' ? 2.3 : 2.05);
+    const g = new THREE.RingGeometry(inner, outer, 180, 1), p = g.attributes.position, uv = g.attributes.uv, v = new V3();
+    for (let i = 0; i < p.count; i++){ v.fromBufferAttribute(p, i); uv.setXY(i, (v.length() - inner)/(outer - inner), .5); }
+    const ring = new THREE.Mesh(g, new THREE.MeshLambertMaterial({
+      map: d.id === 'saturn' ? T.ringSaturn : T.ringUranus, transparent:true, side:THREE.DoubleSide, depthWrite:false,
+      emissive:0x1a1610, opacity: d.id === 'saturn' ? 1 : .8 }));
+    ring.rotation.x = -Math.PI/2;
+    b.tilt.add(ring);
+  }
+
+  // click / hover target
+  b.hit = new THREE.Mesh(new THREE.SphereGeometry(Math.max(d.r * 1.35, 3.2), 12, 8), new THREE.MeshBasicMaterial({visible:false}));
+  b.hit.userData.body = b;
+  b.pivot.add(b.hit);
+  hitMeshes.push(b.hit);
+
+  // orbit path
+  if (d.orb){
+    const pts = [], q = new V3();
+    for (let i = 0; i < 360; i++) pts.push(orbitPoint(d.orb, i/360*TAU, q).clone());
+    b.orbitLine = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:new THREE.Color(d.color), transparent:true, opacity:.32}));
+    orbitLines.add(b.orbitLine);
+  }
+
+  // simulated moons
+  (MOONS[d.id] || []).forEach((m, i) => {
+    const holder = new THREE.Object3D();
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(m.r, 32, 24),
+      new THREE.MeshStandardMaterial({map:m.texture, roughness:.95, bumpMap:m.texture, bumpScale:1.2}));
+    holder.add(mesh); b.pivot.add(holder);
+    const pts = []; for (let k = 0; k < 96; k++){ const a = k/96*TAU; pts.push(new V3(Math.cos(a)*m.a, 0, -Math.sin(a)*m.a)); }
+    const ol = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:.1}));
+    b.pivot.add(ol);
+    b.moons.push({m, holder, mesh, ph: i*1.7 + 1, ol});
+  });
+
+  // DOM label
+  b.label = document.createElement('button');
+  b.label.className = 'lbl'; b.label.textContent = d.name; b.label.tabIndex = -1;
+  b.label.addEventListener('click', () => select(b));
+  $('#labels').appendChild(b.label);
+  return b;
+}
+
+function buildScene(){
+  // Sun glow
+  const g1 = new THREE.SpriteMaterial({map:new THREE.CanvasTexture(glowTexture([[0,'rgba(255,240,190,1)'],[.25,'rgba(255,190,90,.6)'],[.6,'rgba(255,120,30,.16)'],[1,'rgba(255,90,20,0)']])), blending:THREE.AdditiveBlending, transparent:true, depthWrite:false});
+  const g2 = new THREE.SpriteMaterial({map:new THREE.CanvasTexture(glowTexture([[0,'rgba(255,200,120,.35)'],[.4,'rgba(255,140,50,.1)'],[1,'rgba(255,100,30,0)']])), blending:THREE.AdditiveBlending, transparent:true, depthWrite:false});
+  const s1 = new THREE.Sprite(g1); s1.scale.set(74,74,1);
+  const s2 = new THREE.Sprite(g2); s2.scale.set(210,210,1);
+  sunGlow = new THREE.Group(); sunGlow.add(s1, s2); scene.add(sunGlow);
+
+  DATA.forEach(d => { const b = buildBody(d); bodies.push(b); byId[d.id] = b; });
+
+  // Asteroid belt between Mars and Jupiter
+  const n = 5200, pos = new Float32Array(n*3), col = new Float32Array(n*3);
+  for (let i = 0; i < n; i++){
+    const a = Math.random()*TAU, r = 94 + (Math.random()+Math.random()+Math.random())/3*20;
+    pos[i*3] = Math.cos(a)*r; pos[i*3+1] = (Math.random()-.5)*4.5; pos[i*3+2] = -Math.sin(a)*r;
+    const s = .45 + Math.random()*.4;
+    col[i*3] = s; col[i*3+1] = s*.92; col[i*3+2] = s*.82;
+  }
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.BufferAttribute(pos,3)); bg.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const dotTex = new THREE.CanvasTexture(glowTexture([[0,'rgba(255,255,255,1)'],[.6,'rgba(255,255,255,.9)'],[1,'rgba(255,255,255,0)']]));
+  belt = new THREE.Points(bg, new THREE.PointsMaterial({size:.85, map:dotTex, vertexColors:true, transparent:true, depthWrite:false, alphaTest:.05}));
+  scene.add(belt);
+}
+
+/* ---------------------------------------------------------------------
+   6. SIMULATION STATE
+   --------------------------------------------------------------------- */
+const J2000 = Date.UTC(2000, 0, 1, 12);
+const startWall = Date.now();
+const startDays = (startWall - J2000) / 86400000;
+let simDays = 0, spinT = 0, playing = true;
+const speedSlider = $('#speed');
+const daysPerSec = () => .05 * Math.pow(2, (+speedSlider.value / 100) * 13);
+const tmp = new V3();
+
+function updateBodies(dt){
+  const jd = startDays + simDays;
+  for (const b of bodies){
+    if (b.d.orb){ b.rf = keplerPos(b.d.orb, jd, tmp); b.pivot.position.copy(tmp); }
+    if (b.id === 'sun'){ b.base = (b.base || 0) + dt * .03; b.mesh.rotation.y = b.base + b.uy; }
+    else b.mesh.rotation.y = TAU * spinT * 24 / b.rotH + b.uy;
+    if (b.clouds) b.clouds.rotation.y = b.mesh.rotation.y * 1.06 + spinT * .35;
+    b.tilt.rotation.x = b.ux;
+    if (!b.held){
+      const f = Math.exp(-dt * 2.6);
+      b.uy += b.vy * dt; b.ux = clamp(b.ux + b.vx * dt, -1.2, 1.2);
+      b.vy *= f; b.vx *= f;
+    }
+    for (const mo of b.moons){
+      const ang = TAU * jd / mo.m.P * (mo.m.retro ? -1 : 1) + mo.ph;
+      mo.holder.position.set(Math.cos(ang) * mo.m.a, 0, -Math.sin(ang) * mo.m.a);
+      mo.mesh.rotation.y = ang;
+    }
+  }
+  belt.rotation.y = TAU * jd / 1600;
+}
+
+/* ---------------------------------------------------------------------
+   7. CAMERA CONTROLLER (orbit around a follow target)
+   --------------------------------------------------------------------- */
+const cam = { theta:.55, phi:1.02, dist:1900, goalDist:600, target:new V3(), vTheta:0, vPhi:0, hold:false };
+let selected = null, hover = null, viewShiftX = 0, viewShiftY = 0;
+const overviewDist = () => clamp(Math.max(560, 660 / camera.aspect), 500, 1500);
+const minDist = () => selected ? selected.r * 1.5 : 30;
+function setGoal(d){ cam.goalDist = clamp(d, minDist(), 2400); }
+function zoomBy(f){ setGoal(cam.goalDist * f); }
+function dragRotate(dTh, dPh, dt){
+  cam.theta += dTh; cam.phi = clamp(cam.phi + dPh, .06, Math.PI - .06);
+  const inv = 1 / Math.max(dt, 1/120);
+  cam.vTheta = lerp(cam.vTheta, dTh * inv, .6); cam.vPhi = lerp(cam.vPhi, dPh * inv, .6);
+}
+function dragSpin(b, dy, dx, dt){
+  b.uy += dy; b.ux = clamp(b.ux + dx, -1.2, 1.2);
+  const inv = 1 / Math.max(dt, 1/120);
+  b.vy = lerp(b.vy, dy * inv, .6); b.vx = lerp(b.vx, dx * inv, .6);
+}
+function updateCamera(dt){
+  if (!cam.hold){
+    cam.theta += cam.vTheta * dt; cam.phi = clamp(cam.phi + cam.vPhi * dt, .06, Math.PI - .06);
+    const f = Math.exp(-dt * 3.2); cam.vTheta *= f; cam.vPhi *= f;
+  }
+  const k = 1 - Math.exp(-dt * 4.5);
+  cam.dist = Math.exp(Math.log(cam.dist) + (Math.log(cam.goalDist) - Math.log(cam.dist)) * k);
+  const goal = selected ? selected.pivot.position : tmp.set(0,0,0);
+  cam.target.lerp(goal, 1 - Math.exp(-dt * 6));
+  const sp = Math.sin(cam.phi);
+  camera.position.set(
+    cam.target.x + cam.dist * sp * Math.sin(cam.theta),
+    cam.target.y + cam.dist * Math.cos(cam.phi),
+    cam.target.z + cam.dist * sp * Math.cos(cam.theta));
+  camera.lookAt(cam.target);
+  camera.near = Math.max(.05, cam.dist * .004); camera.far = 7000;
+
+  // shift the view so the focused body stays clear of the info panel
+  const W = innerWidth, H = innerHeight, open = document.body.classList.contains('panel-open');
+  const tx = open && W > 820 ? 212 : 0, ty = open && W <= 820 ? H * .2 : 0;
+  viewShiftX = lerp(viewShiftX, tx, 1 - Math.exp(-dt * 6)); viewShiftY = lerp(viewShiftY, ty, 1 - Math.exp(-dt * 6));
+  camera.setViewOffset(W, H, viewShiftX, viewShiftY, W, H);
+  stars.position.copy(camera.position);
+}
+
+/* ---------------------------------------------------------------------
+   8. PICKING, SELECTION, LABELS
+   --------------------------------------------------------------------- */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pick(x, y){
+  ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(hitMeshes, false);
+  return hits.length ? hits[0].object.userData.body : null;
+}
+function setHover(b){
+  if (b === hover) return;
+  if (hover) hover.label.classList.remove('hot');
+  hover = b;
+  if (hover) hover.label.classList.add('hot');
+  canvas.classList.toggle('hover', !!hover);
+}
+
+const navEl = $('#nav');
+DATA.forEach(d => {
+  const btn = document.createElement('button');
+  btn.style.setProperty('--c', d.color); btn.dataset.id = d.id;
+  btn.innerHTML = '<i></i>' + d.name;
+  btn.addEventListener('click', () => select(byId[d.id]));
+  navEl.appendChild(btn);
+});
+
+function select(b){
+  if (!b) return;
+  selected = b;
+  cam.goalDist = clamp(b.r * b.d.fd, minDist(), 2400);
+  cam.vTheta = cam.vPhi = 0;
+  document.body.classList.add('panel-open');
+  renderPanel(b);
+  navEl.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.id === b.id));
+  bodies.forEach(x => { if (x.orbitLine) x.orbitLine.material.opacity = x === b ? .85 : .28; });
+  b.moons.forEach(mo => mo.ol.material.opacity = .22);
+  $('#panel').scrollTop = 0;
+}
+function clearSel(){
+  selected = null;
+  document.body.classList.remove('panel-open');
+  navEl.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+  bodies.forEach(x => { if (x.orbitLine) x.orbitLine.material.opacity = .32; x.moons.forEach(mo => mo.ol.material.opacity = .1); });
+  cam.goalDist = overviewDist();
+}
+function resetView(){ clearSel(); cam.theta = .55; cam.phi = 1.02; cam.vTheta = cam.vPhi = 0; }
+function step(dir){
+  const i = selected ? bodies.indexOf(selected) : -1;
+  select(bodies[(i + dir + bodies.length) % bodies.length]);
+}
+
+const pBody = $('#pBody');
+function renderPanel(b){
+  const d = b.d;
+  const bar = d.comp.map(c => `<i style="--c:${c[2]};flex:${c[1]}" title="${c[0]} ${c[1]}%"></i>`).join('');
+  const leg = d.comp.map(c => `<span style="--c:${c[2]}">${c[0]} ${c[1]}%</span>`).join('');
+  const stats = d.stats.map(s => `<div><dt>${s[0]}</dt><dd>${s[1]}</dd></div>`).join('');
+  const moons = d.moons.length ? `<h3 class="p-h">Notable moons</h3><div class="chips">${d.moons.map(m => `<span>${m}</span>`).join('')}</div>` : '';
+  const live = d.orb ? `<div class="live" aria-label="Live values">
+      <div><b id="lvD">–</b><span>from the Sun now</span></div>
+      <div><b id="lvL">–</b><span>sunlight travel time</span></div>
+      <div><b id="lvS">–</b><span>speed right now</span></div></div>` : '';
+  pBody.style.setProperty('--c', d.color);
+  pBody.innerHTML = `
+    <div class="p-title"><span class="p-dot" style="--c:${d.color}"></span><h2>${d.name}</h2></div>
+    <p class="p-kind">${d.kind}</p>
+    <p class="p-desc">${d.desc}</p>
+    ${live}
+    <h3 class="p-h">Key numbers</h3>
+    <dl class="stats">${stats}</dl>
+    <h3 class="p-h">${d.compTitle}</h3>
+    <div class="bar">${bar}</div><div class="legend">${leg}</div>
+    ${moons}
+    <h3 class="p-h">Worth knowing</h3>
+    <ul class="facts">${d.facts.map(f => `<li>${f}</li>`).join('')}</ul>`;
+  updateLive();
+}
+function fmtTime(min){ return min < 60 ? min.toFixed(1) + ' min' : (min/60).toFixed(1) + ' h'; }
+function updateLive(){
+  if (!selected || !selected.d.orb || !$('#lvD')) return;
+  const o = selected.d.orb, rAU = o.aAU * selected.rf;
+  const km = rAU * 149.598;
+  $('#lvD').textContent = rAU.toFixed(2) + ' AU';
+  $('#lvD').title = km.toFixed(1) + ' million km';
+  $('#lvL').textContent = fmtTime(rAU * 8.317);
+  $('#lvS').textContent = (29.78 * Math.sqrt(2 / rAU - 1 / o.aAU)).toFixed(1) + ' km/s';
+}
+setInterval(updateLive, 300);
+
+const lp = new V3(), up = new V3();
+function updateLabels(){
+  const W = innerWidth, H = innerHeight;
+  up.set(0,1,0).applyQuaternion(camera.quaternion);
+  for (const b of bodies){
+    lp.copy(b.pivot.position).addScaledVector(up, b.r * 1.25 + 1.2).project(camera);
+    const vis = lp.z < 1 && lp.z > -1 && b !== selected;
+    b.label.classList.toggle('hidden', !vis);
+    if (vis){
+      const x = (lp.x * .5 + .5) * W, y = (-lp.y * .5 + .5) * H;
+      b.label.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------
+   9. MOUSE / TOUCH INPUT
+   --------------------------------------------------------------------- */
+const ptrs = new Map();
+let drag = null, pinchLast = 0;
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 1){
+    const hit = pick(e.clientX, e.clientY);
+    drag = { mode: hit && hit === selected ? 'spin' : 'orbit', body:hit, moved:0, t0:performance.now(), last:performance.now(), sx:e.clientX, sy:e.clientY };
+    if (drag.mode === 'spin'){ hit.held = true; hit.vy = hit.vx = 0; } else { cam.hold = true; }
+    cam.vTheta = cam.vPhi = 0;
+    canvas.classList.add('drag');
+  } else if (ptrs.size === 2){
+    const [a, b] = [...ptrs.values()]; pinchLast = Math.hypot(a.x - b.x, a.y - b.y);
+    if (drag && drag.body) drag.body.held = false;
+    drag = null; cam.hold = true;
+  }
+});
+canvas.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p){ if (e.pointerType === 'mouse') setHover(pick(e.clientX, e.clientY)); return; }
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  const now = performance.now();
+  if (ptrs.size === 2){
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchLast > 0 && d > 0) zoomBy(pinchLast / d);
+    pinchLast = d; return;
+  }
+  if (!drag) return;
+  drag.moved += Math.abs(dx) + Math.abs(dy);
+  const dt = (now - drag.last) / 1000; drag.last = now;
+  if (drag.mode === 'spin') dragSpin(drag.body, dx * .009, dy * .009, dt);
+  else dragRotate(-dx * .0055, -dy * .0055, dt);
+});
+function endPointer(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (drag && ptrs.size === 0){
+    const now = performance.now(), quick = now - drag.t0 < 450 && drag.moved < 7;
+    if (now - drag.last > 90){ cam.vTheta = cam.vPhi = 0; if (drag.body){ drag.body.vy = drag.body.vx = 0; } }
+    if (drag.body) drag.body.held = false;
+    if (quick && e.type === 'pointerup'){ const hit = pick(e.clientX, e.clientY); if (hit) select(hit); }
+    drag = null;
+  }
+  if (ptrs.size === 0){ cam.hold = false; canvas.classList.remove('drag'); pinchLast = 0; }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', () => { if (!ptrs.size) setHover(null); });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const k = e.deltaMode === 1 ? 16 : 1;
+  zoomBy(Math.exp(clamp(e.deltaY * k, -240, 240) * .0012));
+}, {passive:false});
+canvas.addEventListener('dblclick', () => { if (!hover) clearSel(); });
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.key !== 'Escape') return;
+  const k = e.key;
+  if (k === 'Escape') resetView();
+  else if (k === 'ArrowRight') step(1);
+  else if (k === 'ArrowLeft') step(-1);
+  else if (k === '+' || k === '=') zoomBy(.85);
+  else if (k === '-') zoomBy(1.18);
+  else if (k === ' ' && e.target.tagName !== 'BUTTON'){ e.preventDefault(); togglePlay(); }
+  else if (k === 'l' || k === 'L') $('#btnLabels').click();
+  else if (k === 'o' || k === 'O') $('#btnOrbits').click();
+  else if (k === 'b' || k === 'B') $('#btnBelt').click();
+  else if (k === 'h' || k === 'H') $('#btnHand').click();
+});
+
+/* ---------------------------------------------------------------------
+   10. UI CONTROLS
+   --------------------------------------------------------------------- */
+function togglePlay(){
+  playing = !playing;
+  $('#playIcon').innerHTML = playing ? '<path d="M8 5v14M16 5v14"/>' : '<path d="M7 4l13 8-13 8z"/>';
+  $('#btnPlay').setAttribute('aria-label', playing ? 'Pause simulation' : 'Play simulation');
+  toast(playing ? 'Simulation running' : 'Simulation paused');
+}
+$('#btnPlay').addEventListener('click', togglePlay);
+$('#btnNow').addEventListener('click', () => { simDays = 0; toast('Back to today’s real positions'); });
+function updateSpeedText(){
+  const d = daysPerSec();
+  $('#speedTxt').textContent = d < 1 ? (d * 24).toFixed(1) + ' hours/s' : d.toFixed(d < 10 ? 1 : 0) + ' days/s';
+}
+speedSlider.addEventListener('input', updateSpeedText); updateSpeedText();
+const dateFmt = new Intl.DateTimeFormat(undefined, {year:'numeric', month:'short', day:'numeric'});
+function updateDate(){ $('#dateTxt').textContent = dateFmt.format(new Date(startWall + simDays * 86400000)); }
+
+function bindToggle(id, cb){
+  const el = $(id);
+  el.addEventListener('click', () => { const on = el.getAttribute('aria-pressed') !== 'true'; el.setAttribute('aria-pressed', on); cb(on); });
+}
+bindToggle('#btnLabels', on => document.body.classList.toggle('nolabels', !on));
+bindToggle('#btnOrbits', on => { orbitLines.visible = on; bodies.forEach(b => b.moons.forEach(m => m.ol.visible = on)); });
+bindToggle('#btnBelt', on => { belt.visible = on; });
+$('#btnHome').addEventListener('click', resetView);
+$('#btnFull').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || (() => toast('Fullscreen is not available here')))
+        .call(document.documentElement);
+});
+$('#pClose').addEventListener('click', clearSel);
+$('#pPrev').addEventListener('click', () => step(-1));
+$('#pNext').addEventListener('click', () => step(1));
+$('#guideToggle').addEventListener('click', () => {
+  const hud = $('#hud'); hud.classList.toggle('min');
+  $('#guideToggle').textContent = hud.classList.contains('min') ? 'Show guide' : 'Hide guide';
+});
+
+let toastTimer = 0;
+function toast(msg, ms = 2800){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), ms);
+}
+
+function resize(){
+  const W = innerWidth, H = innerHeight;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  if (!selected) cam.goalDist = overviewDist();
+}
+addEventListener('resize', resize);
+
+/* ---------------------------------------------------------------------
+   11. HAND TRACKING  (MediaPipe Hands, loaded only when switched on)
+   --------------------------------------------------------------------- */
+const hand = {
+  on:false, ready:false, stream:null, model:null, busy:false, lastT:-1, raf:0,
+  cur:{x:innerWidth/2, y:innerHeight/2}, prev:{x:0,y:0}, seenAt:0, lastResult:0,
+  pinchState:[false,false], g:'none', cand:'none', candN:0, two:0, zoom2:null,
+  grab:null, palm:null, fistStart:0, dwellBody:null, dwellStart:0, lastMove:0, lastRes:performance.now(), visible:false
+};
+const cursorEl = $('#cursor'), curProg = $('#curProg'), curTag = $('#curTag');
+const video = $('#cam'), ov = $('#ov'), ovc = ov.getContext('2d');
+const GESTURE_UI = {
+  none:['🖐️','Show your hand',''],
+  point:['☝️','Pointing','Hold over a planet to select'],
+  pinch:['🤏','Grabbing','Move to spin the planet or orbit'],
+  palm:['✋','Zoom','Move hand closer or farther'],
+  fist:['✊','Holding','Hold to return to the system'],
+  two:['🙌','Two-hand zoom','Spread or close your hands'],
+  other:['🖐️','Hand detected','']
+};
+function setGestureUI(g){
+  const u = GESTURE_UI[g] || GESTURE_UI.other;
+  $('#gEm').textContent = u[0]; $('#gTxt').textContent = u[1]; $('#gSub').textContent = u[2];
+}
+const HAND_LINES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function loadScript(src){
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.crossOrigin = 'anonymous';
+    s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src));
+    document.head.appendChild(s);
+  });
+}
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/';
+
+async function startHand(){
+  document.body.classList.add('hand-on');
+  $('#btnHand').setAttribute('aria-pressed', 'true');
+  setGestureUI('none'); $('#gTxt').textContent = 'Starting camera…'; $('#gSub').textContent = '';
+  hand.on = true;
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nocam');
+    hand.stream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640}, height:{ideal:480}, facingMode:'user'}, audio:false});
+    video.srcObject = hand.stream; video.muted = true; video.setAttribute('playsinline', '');
+    await video.play();
+    ov.width = video.videoWidth || 640; ov.height = video.videoHeight || 480;
+    $('#gTxt').textContent = 'Loading hand model…';
+    if (!hand.model){
+      await loadScript(MP + 'hands.js');
+      const H = new window.Hands({locateFile: f => MP + f});
+      H.setOptions({maxNumHands:2, modelComplexity:1, minDetectionConfidence:.6, minTrackingConfidence:.55, selfieMode:false});
+      H.onResults(onHandResults);
+      await H.initialize();
+      hand.model = H;
+    }
+    if (!hand.on) return;
+    hand.ready = true; setGestureUI('none');
+    toast('Hand control on. Point at a planet, or pinch to grab.', 3600);
+    trackLoop();
+  } catch (err){
+    console.error(err);
+    const denied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+    const msg = denied ? 'Camera access was blocked. Allow the camera in your browser’s address bar and try again.'
+      : err && err.message === 'nocam' ? 'Camera access needs a secure page. Open this file from localhost or an https address.'
+      : err && err.name === 'NotFoundError' ? 'No camera found on this device.'
+      : 'Hand tracking could not start. Check your connection and camera, then try again.';
+    stopHand(); toast(msg, 5500);
+  }
+}
+function stopHand(){
+  hand.on = false; hand.ready = false; cancelAnimationFrame(hand.raf);
+  if (hand.stream){ hand.stream.getTracks().forEach(t => t.stop()); hand.stream = null; }
+  video.srcObject = null;
+  endGrab(); hand.palm = null; hand.zoom2 = null; hand.g = 'none'; hand.cand = 'none';
+  cursorEl.classList.remove('on'); setHover(null);
+  document.body.classList.remove('hand-on');
+  $('#btnHand').setAttribute('aria-pressed', 'false');
+}
+$('#btnHand').addEventListener('click', () => hand.on ? stopHand() : startHand());
+
+async function trackLoop(){
+  if (!hand.on) return;
+  if (!hand.busy && video.readyState >= 2 && video.currentTime !== hand.lastT){
+    hand.busy = true; hand.lastT = video.currentTime;
+    try { await hand.model.send({image:video}); } catch (e){ console.error(e); }
+    hand.busy = false;
+  }
+  hand.raf = requestAnimationFrame(trackLoop);
+}
+
+const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function toScreen(lx, ly){
+  const x = clamp(.5 + ((1 - lx) - .5) * 1.5, 0, 1), y = clamp(.5 + (ly - .5) * 1.5, 0, 1);
+  return [x * innerWidth, y * innerHeight];
+}
+function analyze(lm, idx){
+  const W = lm[0], size = dist2(lm[0], lm[9]) || .001;
+  const dz = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z - b.z) * .6);
+  const ext = [[8,6],[12,10],[16,14],[20,18]].map(([t, p]) => dz(lm[t], W) > dz(lm[p], W) * 1.1);
+  const extCount = ext.filter(Boolean).length;
+  const pd = dz(lm[4], lm[8]) / (dz(lm[0], lm[9]) || .001);
+  const was = hand.pinchState[idx];
+  const near = pd < (was ? .55 : .36);
+  const pinch = near && (ext[1] || ext[2] || ext[3] || pd < .22);
+  hand.pinchState[idx] = pinch;
+  let g = 'other';
+  if (pinch) g = 'pinch';
+  else if (extCount === 4) g = 'palm';
+  else if (extCount === 0) g = 'fist';
+  else if (ext[0]) g = 'point';
+  const mid = [(lm[4].x + lm[8].x) / 2, (lm[4].y + lm[8].y) / 2];
+  const tip = g === 'pinch' ? mid : [lm[8].x, lm[8].y];
+  const [sx, sy] = toScreen(tip[0], tip[1]);
+  return { g, size, sx, sy, lm };
+}
+
+function drawHands(all){
+  ovc.clearRect(0, 0, ov.width, ov.height);
+  if (!all.length) return;
+  const w = ov.width, h = ov.height;
+  all.forEach(lm => {
+    ovc.lineWidth = 2.5; ovc.strokeStyle = 'rgba(122,215,255,.9)'; ovc.beginPath();
+    HAND_LINES.forEach(([a, b]) => { ovc.moveTo(lm[a].x * w, lm[a].y * h); ovc.lineTo(lm[b].x * w, lm[b].y * h); });
+    ovc.stroke();
+    lm.forEach((p, i) => {
+      ovc.fillStyle = (i === 4 || i === 8) ? '#ffb347' : '#fff';
+      ovc.beginPath(); ovc.arc(p.x * w, p.y * h, (i === 4 || i === 8) ? 5 : 3, 0, TAU); ovc.fill();
+    });
+  });
+}
+
+function endGrab(){
+  const g = hand.grab; if (!g) return;
+  const stale = performance.now() - hand.lastMove > 110;
+  if (g.mode === 'spin' && g.body){ g.body.held = false; if (stale){ g.body.vy = g.body.vx = 0; } }
+  else { cam.hold = false; if (stale){ cam.vTheta = cam.vPhi = 0; } }
+  hand.grab = null; canvas.classList.remove('drag');
+}
+function changeGesture(g){
+  const old = hand.g;
+  if (old === 'pinch') endGrab();
+  if (old === 'palm') hand.palm = null;
+  if (old === 'fist') hand.fistStart = 0;
+  hand.g = g; hand.dwellBody = null; curProg.style.setProperty('--p', 0);
+  setGestureUI(g);
+  if (g === 'pinch'){
+    const b = hover;
+    if (b){ if (selected !== b) select(b); b.held = true; b.vy = b.vx = 0; hand.grab = {mode:'spin', body:b}; }
+    else { cam.hold = true; cam.vTheta = cam.vPhi = 0; hand.grab = {mode:'orbit'}; }
+    canvas.classList.add('drag');
+  } else if (g === 'palm'){
+    hand.palm = {ref:null, goal0:cam.goalDist, size:0};
+  } else if (g === 'fist'){
+    hand.fistStart = performance.now(); cam.vTheta = cam.vPhi = 0;
+  }
+}
+function setCursor(x, y, cls, tag){
+  cursorEl.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  cursorEl.className = 'cursor on ' + cls;
+  curTag.textContent = tag || ''; curTag.classList.toggle('on', !!tag);
+}
+function handLost(){
+  if (hand.g !== 'none'){ endGrab(); hand.palm = null; hand.g = 'none'; hand.cand = 'none'; hand.zoom2 = null; hand.two = 0; setGestureUI('none'); }
+  cursorEl.classList.remove('on'); setHover(null); curProg.style.setProperty('--p', 0);
+  hand.visible = false;
+}
+
+function onHandResults(res){
+  if (!hand.on) return;
+  const now = performance.now(), all = res.multiHandLandmarks || [];
+  drawHands(all);
+  if (!all.length){ if (now - hand.seenAt > 380) handLost(); return; }
+  hand.seenAt = now;
+  const hs = all.map(analyze);
+
+  /* two-hand zoom: both hands pinching */
+  if (hs.length === 2 && hs[0].g === 'pinch' && hs[1].g === 'pinch') hand.two++; else hand.two = 0;
+  if (hand.two >= 3){
+    if (hand.g !== 'two'){ endGrab(); hand.palm = null; hand.g = 'two'; hand.cand = 'two'; setGestureUI('two'); }
+    const d = Math.hypot(hs[0].sx - hs[1].sx, hs[0].sy - hs[1].sy);
+    if (!hand.zoom2) hand.zoom2 = {d0:Math.max(d, 60), goal0:cam.goalDist, d:d};
+    hand.zoom2.d = lerp(hand.zoom2.d, d, .4);
+    setGoal(hand.zoom2.goal0 * Math.pow(hand.zoom2.d0 / Math.max(hand.zoom2.d, 40), 1.4));
+    setCursor((hs[0].sx + hs[1].sx) / 2, (hs[0].sy + hs[1].sy) / 2, 'two', '');
+    hand.visible = true; return;
+  }
+  if (hand.g === 'two'){ hand.zoom2 = null; hand.g = 'none'; hand.cand = 'none'; }
+
+  /* single hand */
+  const P = hs[0];
+  if (P.g !== hand.cand){ hand.cand = P.g; hand.candN = 1; } else hand.candN++;
+  if (P.g !== hand.g && (hand.candN >= 3 || (P.g === 'pinch' && hand.candN >= 2)) ){
+    // update hover from the raw cursor before evaluating a pinch start
+    if (P.g === 'pinch') setHover(pick(hand.cur.x, hand.cur.y));
+    changeGesture(P.g);
+  }
+  if (!hand.visible){ hand.cur.x = P.sx; hand.cur.y = P.sy; hand.prev.x = P.sx; hand.prev.y = P.sy; hand.visible = true; }
+  const a = hand.g === 'pinch' ? .5 : .38;
+  hand.cur.x = lerp(hand.cur.x, P.sx, a); hand.cur.y = lerp(hand.cur.y, P.sy, a);
+  const dx = hand.cur.x - hand.prev.x, dy = hand.cur.y - hand.prev.y, dt = Math.max((now - hand.lastRes) / 1000, 1/120);
+  hand.prev.x = hand.cur.x; hand.prev.y = hand.cur.y; hand.lastRes = now;
+
+  const g = hand.g;
+  if (g !== 'pinch') setHover(pick(hand.cur.x, hand.cur.y));
+  let prog = 0, tag = hover ? hover.d.name : '';
+
+  if (g === 'pinch' && hand.grab){
+    hand.lastMove = now;
+    const gr = hand.grab;
+    if (gr.mode === 'spin') dragSpin(gr.body, dx * .011, dy * .011, dt);
+    else dragRotate(-dx * .0065, -dy * .0065, dt);
+    tag = gr.mode === 'spin' ? gr.body.d.name : '';
+  } else if (g === 'point'){
+    if (hover && hover !== selected){
+      if (hand.dwellBody !== hover){ hand.dwellBody = hover; hand.dwellStart = now; }
+      prog = clamp((now - hand.dwellStart) / 1200, 0, 1);
+      if (prog >= 1){ select(hover); hand.dwellBody = null; prog = 0; toast(hover.d.name + ' selected'); }
+    } else hand.dwellBody = null;
+  } else if (g === 'palm' && hand.palm){
+    const pm = hand.palm;
+    pm.size = pm.size ? lerp(pm.size, P.size, .35) : P.size;
+    if (!pm.ref){ pm.ref = pm.size; pm.goal0 = cam.goalDist; }
+    const ratio = pm.ref / Math.max(pm.size, .01);
+    const dead = Math.abs(Math.log(ratio)) < .05 ? 1 : Math.exp(-Math.sign(Math.log(ratio)) * .05) * ratio;
+    setGoal(pm.goal0 * Math.pow(dead, 2.4));
+    tag = ratio < 1 ? 'Zooming in' : 'Zooming out';
+  } else if (g === 'fist' && hand.fistStart){
+    prog = clamp((now - hand.fistStart) / 1300, 0, 1);
+    if (prog >= 1){ hand.fistStart = 0; prog = 0; if (selected){ clearSel(); toast('Back to the full system'); } }
+  }
+  curProg.style.setProperty('--p', prog.toFixed(3));
+  setCursor(hand.cur.x, hand.cur.y, g === 'other' ? 'point' : g, tag);
+}
+
+/* ---------------------------------------------------------------------
+   12. MAIN LOOP
+   --------------------------------------------------------------------- */
+let last = performance.now(), dateT = 0;
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (playing){
+    const s = daysPerSec();
+    simDays += dt * s;
+    spinT += dt * Math.min(s, .35);
+  }
+  updateBodies(dt);
+  sunGlow.position.set(0,0,0);
+  updateCamera(dt);
+  updateLabels();
+  if ((dateT -= dt) <= 0){ updateDate(); dateT = .1; }
+  renderer.render(scene, camera);
+}
+
+/* ---------------------------------------------------------------------
+   13. BOOT
+   --------------------------------------------------------------------- */
+(async function boot(){
+  if (!window.THREE){
+    $('#loadText').textContent = 'three.js could not be loaded. Check your internet connection and reload.';
+    return;
+  }
+  try {
+    resize();
+    await generateTextures();
+    buildScene();
+    resize();
+    cam.goalDist = overviewDist();
+    updateDate();
+    animate(performance.now());
+    setTimeout(() => {
+      $('#loader').classList.add('done');
+      toast('Click a planet to explore it. Turn on Hand control to use your webcam.', 4200);
+    }, 350);
+  } catch (err){
+    console.error(err);
+    $('#loadText').textContent = 'Something went wrong while starting. Please reload the page.';
+  }
+})();
+</script>
+</body>
+</html>
